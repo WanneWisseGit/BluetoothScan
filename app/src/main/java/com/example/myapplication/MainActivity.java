@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.CountDownTimer;
+import android.os.StrictMode;
 import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -16,14 +17,21 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 
 public class MainActivity extends AppCompatActivity {
-
-
+    Connection conn;
+    ArrayList<String> macAddressList = new ArrayList<String>();
+    ArrayList<Integer> userEventIdList = new ArrayList<Integer>();
     android.bluetooth.BluetoothAdapter bluetoothAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
     ArrayList<Devicepair> items = new ArrayList<Devicepair>();
     String output = "";
@@ -41,6 +49,15 @@ public class MainActivity extends AppCompatActivity {
         filter = new android.content.IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
         registerReceiver(receiver, filter);
 
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        StrictMode.setThreadPolicy(policy);
+
+        if(conn == null){
+            ConnectionDb();
+        }
+        if(macAddressList.size() == 0){
+            getEventList();
+        }
 
         if (bluetoothAdapter == null) {
             Context context = getApplicationContext();
@@ -70,6 +87,7 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
 
+            ArrayList<Integer> succesMacAdressList = new ArrayList<Integer>();
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Discovery has found a device. Get the BluetoothDevice
                 // object and its info from the Intent.
@@ -95,11 +113,28 @@ public class MainActivity extends AppCompatActivity {
                 android.widget.TextView textView = findViewById(R.id.editText);
 
                 for (Devicepair d: items) {
-                    output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
+                    //output += d.device + "           ";
+
+                    for (int y = 0; y < macAddressList.size(); y++) {
+                        if(macAddressList.get(y).equals(d.device)){
+                            //output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
+                            succesMacAdressList.add(userEventIdList.get(y));
+                            macAddressList.remove(y);
+                        }
+                    }
                 }
+
+                if(!succesMacAdressList.isEmpty()){
+                    setCheckedInByMacAddress(succesMacAdressList);
+                    output += succesMacAdressList.size()+" persons checked in!";
+                }
+                else{
+                    //output += "no one found to check in";
+                }
+
                 textView.setText("");
                 textView.setText(output);
-                output = "";
+                //output = "";
                 //textView.setText(textView.getText() + "\n " + "\n" +  deviceHardwareName+ " "  +deviceHardwareAddress + " " + rssi);
             }
             if(BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
@@ -125,6 +160,67 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    public void ConnectionDb(){
+        try{
+            Class.forName("org.postgresql.Driver");
+            conn = DriverManager.getConnection("jdbc:postgresql://145.24.222.158:5432/label_a?user=postgres&password=ww123");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public void getEventList(){
+        Statement st = null;
+        try {
+            st = conn.createStatement();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        ResultSet result;
+        String sql;
+        sql = "select user_events.id,users.mac_address from user_events LEFT JOIN users ON user_events.id=users.id WHERE users.mac_address IS NOT NUll";
+        try {
+            result = st.executeQuery(sql);
+            while(result.next()) {
+                macAddressList.add(result.getString(2));
+                userEventIdList.add(result.getInt(1));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public boolean setCheckedInByMacAddress(ArrayList<Integer> idList){
+        String sql;
+        PreparedStatement st = null;
+        String idListString = "";
+
+        for (int i = 0; i < idList.size(); i++) {
+            if(idList.size()-1 == i){
+                idListString += idList.get(i);
+            }
+            else{
+                idListString += idList.get(i)+ ",";
+            }
+        }
+        sql = "UPDATE user_events SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP WHERE id IN ("+idListString+")";
+        try {
+            st = conn.prepareStatement(sql);
+            int count = st.executeUpdate();
+            if(count == 1){
+                return true;
+            }
+            else{
+                return false;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 
 
     protected void onActivityResult (int requestCode,int resultCode, Intent data){
