@@ -34,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<Integer> userEventIdList = new ArrayList<Integer>();
     android.bluetooth.BluetoothAdapter bluetoothAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
     ArrayList<Devicepair> items = new ArrayList<Devicepair>();
+    ArrayList<IdRssiPair> Idrssi = new ArrayList<IdRssiPair>();
     String output = "";
 
     @Override
@@ -72,6 +73,9 @@ public class MainActivity extends AppCompatActivity {
             enableBtIntent = new android.content.Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, 0);
         }
+        else{
+            bluetoothAdapter.startDiscovery();
+        }
 
     }
 
@@ -87,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
 
-            ArrayList<Integer> succesMacAdressList = new ArrayList<Integer>();
+
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Discovery has found a device. Get the BluetoothDevice
                 // object and its info from the Intent.
@@ -113,20 +117,21 @@ public class MainActivity extends AppCompatActivity {
                 android.widget.TextView textView = findViewById(R.id.editText);
 
                 for (Devicepair d: items) {
-                    //output += d.device + "           ";
+                    output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
 
                     for (int y = 0; y < macAddressList.size(); y++) {
                         if(macAddressList.get(y).equals(d.device)){
-                            //output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
-                            succesMacAdressList.add(userEventIdList.get(y));
+
+                            Idrssi.add(new IdRssiPair(userEventIdList.get(y), d.rssi));
+                            // output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
                             macAddressList.remove(y);
                         }
                     }
                 }
 
-                if(!succesMacAdressList.isEmpty()){
-                    setCheckedInByMacAddress(succesMacAdressList);
-                    output += succesMacAdressList.size()+" persons checked in!";
+                if(!Idrssi.isEmpty()){
+                    setCheckedInByMacAddress(Idrssi);
+                    //output += "A person checked in!";
                 }
                 else{
                     //output += "no one found to check in";
@@ -134,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
 
                 textView.setText("");
                 textView.setText(output);
-                //output = "";
+                output = "";
                 //textView.setText(textView.getText() + "\n " + "\n" +  deviceHardwareName+ " "  +deviceHardwareAddress + " " + rssi);
             }
             if(BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
@@ -153,6 +158,7 @@ public class MainActivity extends AppCompatActivity {
                         bluetoothAdapter.cancelDiscovery();
                         bluetoothAdapter.startDiscovery();
 
+                        setCheckedIn();
                     }
                 }.start();
             }
@@ -193,9 +199,43 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public boolean setCheckedInByMacAddress(ArrayList<Integer> idList){
+    public void setCheckedInByMacAddress(ArrayList<IdRssiPair> idList){
         String sql;
         PreparedStatement st = null;
+        String idListString = "";
+
+        for (IdRssiPair d: idList) {
+            sql = "UPDATE user_events SET s1 = " + d.rssi + " where id = " + d.id;
+            try {
+                st = conn.prepareStatement(sql);
+                st.executeUpdate();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void setCheckedIn(){
+        String sql;
+        PreparedStatement st = null;
+        sql = "select id,s1,s2,s3 from user_events";
+        ResultSet result;
+        ArrayList<Integer> idList = new ArrayList<Integer>();
+        try {
+            st = conn.prepareStatement(sql);
+            int count = st.executeUpdate();
+
+            result = st.executeQuery(sql);
+            while(result.next()) {
+                if(result.getInt(2) != 0 && result.getInt(3) != 0 && result.getInt(4) != 0){
+                    idList.add(result.getInt(1));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+
         String idListString = "";
 
         for (int i = 0; i < idList.size(); i++) {
@@ -207,19 +247,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         sql = "UPDATE user_events SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP WHERE id IN ("+idListString+")";
-        try {
-            st = conn.prepareStatement(sql);
-            int count = st.executeUpdate();
-            if(count == 1){
-                return true;
-            }
-            else{
-                return false;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
     }
 
 
