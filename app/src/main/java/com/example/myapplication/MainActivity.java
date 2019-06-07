@@ -117,20 +117,30 @@ public class MainActivity extends AppCompatActivity {
                 android.widget.TextView textView = findViewById(R.id.editText);
 
                 for (Devicepair d: items) {
-                    output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
+                    if(d.device.equals("18:F0:E4:F4:3D:B8")){
+                        output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
+                    }
+                    //output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
 
                     for (int y = 0; y < macAddressList.size(); y++) {
                         if(macAddressList.get(y).equals(d.device)){
 
+
                             Idrssi.add(new IdRssiPair(userEventIdList.get(y), d.rssi));
                             // output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
-                            macAddressList.remove(y);
                         }
                     }
                 }
 
                 if(!Idrssi.isEmpty()){
-                    setCheckedInByMacAddress(Idrssi);
+                    boolean result = setCheckedInByMacAddress(Idrssi);
+                    if(!result){
+                        CharSequence text = "deze dingetje is kaput";
+                        int duration = Toast.LENGTH_SHORT;
+
+                        Toast toast = Toast.makeText(context, text, duration);
+                        toast.show();
+                    }
                     //output += "A person checked in!";
                 }
                 else{
@@ -140,10 +150,11 @@ public class MainActivity extends AppCompatActivity {
                 textView.setText("");
                 textView.setText(output);
                 output = "";
+                Idrssi.clear();
                 //textView.setText(textView.getText() + "\n " + "\n" +  deviceHardwareName+ " "  +deviceHardwareAddress + " " + rssi);
             }
             if(BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
-                new android.os.CountDownTimer(15000, 1000) {
+                new android.os.CountDownTimer(4000, 1000) {
                     public void onTick(long millisUntilFinished) {
 
                     }
@@ -199,33 +210,44 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void setCheckedInByMacAddress(ArrayList<IdRssiPair> idList){
+    public boolean setCheckedInByMacAddress(ArrayList<IdRssiPair> idList){
         String sql;
         PreparedStatement st = null;
-        String idListString = "";
 
         for (IdRssiPair d: idList) {
             sql = "UPDATE user_events SET s1 = " + d.rssi + " where id = " + d.id;
             try {
                 st = conn.prepareStatement(sql);
-                st.executeUpdate();
+                int count = st.executeUpdate();
+                if(count == 1){
+                    return true;
+                }
+                else{
+                    return false;
+                }
             } catch (SQLException e) {
                 e.printStackTrace();
             }
         }
+        return false;
     }
 
-    public void setCheckedIn(){
+    public boolean setCheckedIn(){
         String sql;
-        PreparedStatement st = null;
-        sql = "select id,s1,s2,s3 from user_events";
+        Statement st = null;
+        try {
+            st = conn.createStatement();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        sql = "select id,s1,s2,s3 from user_events where checked_in IS NOT true";
         ResultSet result;
         ArrayList<Integer> idList = new ArrayList<Integer>();
         try {
-            st = conn.prepareStatement(sql);
-            int count = st.executeUpdate();
-
             result = st.executeQuery(sql);
+            if(!result.next()){
+                return false;
+            }
             while(result.next()) {
                 if(result.getInt(2) != 0 && result.getInt(3) != 0 && result.getInt(4) != 0){
                     idList.add(result.getInt(1));
@@ -247,6 +269,23 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         sql = "UPDATE user_events SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP WHERE id IN ("+idListString+")";
+
+        try {
+            PreparedStatement st2 = null;
+            st2 = conn.prepareStatement(sql);
+            int count = st2.executeUpdate();
+            if(count == 1){
+                return true;
+            }
+            else{
+                return false;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return false;
+
     }
 
 
