@@ -13,7 +13,11 @@ import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.ListView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,7 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     Connection conn;
     ArrayList<String> macAddressList = new ArrayList<String>();
     ArrayList<Integer> userEventIdList = new ArrayList<Integer>();
@@ -36,6 +40,8 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<Devicepair> items = new ArrayList<Devicepair>();
     ArrayList<IdRssiPair> Idrssi = new ArrayList<IdRssiPair>();
     String output = "";
+    Spinner spinner;
+    String scanner = "s1";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,7 +49,18 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
 
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.choose_scanner);
+
+        spinner = findViewById(R.id.choose_scanner);
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this, R.array.scanners, android.R.layout.simple_spinner_item);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+
+        Button button = (Button) findViewById(R.id.choose_scanner_btn);
+        button.setOnClickListener(this);
+
+
+
 
         android.content.IntentFilter filter = new android.content.IntentFilter(BluetoothDevice.ACTION_FOUND);
         registerReceiver(receiver, filter);
@@ -73,12 +90,7 @@ public class MainActivity extends AppCompatActivity {
             enableBtIntent = new android.content.Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, 0);
         }
-        else{
-            bluetoothAdapter.startDiscovery();
-        }
-
     }
-
 
 
 
@@ -133,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 if(!Idrssi.isEmpty()){
-                    boolean result = setCheckedInByMacAddress(Idrssi);
+                    boolean result = setCheckedInByMacAddress(Idrssi, scanner);
                     if(!result){
                         CharSequence text = "deze dingetje is kaput";
                         int duration = Toast.LENGTH_SHORT;
@@ -154,7 +166,7 @@ public class MainActivity extends AppCompatActivity {
                 //textView.setText(textView.getText() + "\n " + "\n" +  deviceHardwareName+ " "  +deviceHardwareAddress + " " + rssi);
             }
             if(BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
-                new android.os.CountDownTimer(4000, 1000) {
+                new android.os.CountDownTimer(5000, 1000) {
                     public void onTick(long millisUntilFinished) {
 
                     }
@@ -210,12 +222,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public boolean setCheckedInByMacAddress(ArrayList<IdRssiPair> idList){
+    public boolean setCheckedInByMacAddress(ArrayList<IdRssiPair> idList, String scanner){
         String sql;
         PreparedStatement st = null;
 
         for (IdRssiPair d: idList) {
-            sql = "UPDATE user_events SET s1 = " + d.rssi + " where id = " + d.id;
+            sql = "UPDATE user_events SET "+scanner+" = " + d.rssi + " where id = " + d.id;
             try {
                 st = conn.prepareStatement(sql);
                 int count = st.executeUpdate();
@@ -306,5 +318,22 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(receiver);
+    }
+
+    @Override
+    public void onClick(View view) {
+        String option = spinner.getSelectedItem().toString();
+        if(option.equals("Scanner 3")){
+            scanner = "s1";
+        }
+        else if(option.equals("Scanner 2")){
+            scanner = "s2";
+        }
+        else{
+            scanner = "s1";
+        }
+
+        bluetoothAdapter.startDiscovery();
+        setContentView(R.layout.activity_main);
     }
 }

@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">My Application</string>
+
+    <string-array name="scanners">
+        <item>Scanner 1</item>
+        <item>Scanner 2</item>
+        <item>Scanner 3</item>
+    </string-array>
 </resources>
+
+
+
