@@ -32,36 +32,18 @@ import java.util.Arrays;
 import java.util.List;
 
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+public class MainActivity extends AppCompatActivity {
     Connection conn;
-    ArrayList<String> macAddressList = new ArrayList<String>();
-    ArrayList<Integer> userEventIdList = new ArrayList<Integer>();
     android.bluetooth.BluetoothAdapter bluetoothAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+    ArrayList<IdMacaddressPair> idMacaddressPairs = new ArrayList<IdMacaddressPair>();
     ArrayList<Devicepair> items = new ArrayList<Devicepair>();
-    ArrayList<IdRssiPair> Idrssi = new ArrayList<IdRssiPair>();
     String output = "";
-    Spinner spinner;
-    String scanner = "s1";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
-
-
-        setContentView(R.layout.choose_scanner);
-
-        spinner = findViewById(R.id.choose_scanner);
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this, R.array.scanners, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-
-        Button button = (Button) findViewById(R.id.choose_scanner_btn);
-        button.setOnClickListener(this);
-
-
-
-
+        setContentView(R.layout.activity_main);
         android.content.IntentFilter filter = new android.content.IntentFilter(BluetoothDevice.ACTION_FOUND);
         registerReceiver(receiver, filter);
         filter = new android.content.IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
@@ -73,8 +55,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if(conn == null){
             ConnectionDb();
         }
-        if(macAddressList.size() == 0){
+        if(idMacaddressPairs.size() == 0 && conn != null){
             getEventList();
+        }
+        else{
+            Context context = getApplicationContext();
+            CharSequence text = "No db connection";
+            int duration = Toast.LENGTH_SHORT;
+
+            Toast toast = Toast.makeText(context, text, duration);
+            toast.show();
+        }
+
+        if (!bluetoothAdapter.isEnabled()) {
+            android.content.Intent enableBtIntent;
+            enableBtIntent = new android.content.Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, 0);
+        }
+        else{
+            bluetoothAdapter.startDiscovery();
         }
 
         if (bluetoothAdapter == null) {
@@ -84,11 +83,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
             Toast toast = Toast.makeText(context, text, duration);
             toast.show();
-        }
-        if (!bluetoothAdapter.isEnabled()) {
-            android.content.Intent enableBtIntent;
-            enableBtIntent = new android.content.Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, 0);
         }
     }
 
@@ -103,14 +97,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
 
-
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Discovery has found a device. Get the BluetoothDevice
                 // object and its info from the Intent.
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                int rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI,Short.MIN_VALUE);
+                int rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE);
+
                 String deviceHardwareAddress = device.getAddress(); // MAC address
-                String deviceHardwareName = device.getName(); // Name
                 Boolean added = false;
 
 
@@ -125,44 +118,26 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
 
 
-
-                android.widget.TextView textView = findViewById(R.id.editText);
-
-                for (Devicepair d: items) {
-                    if(d.device.equals("18:F0:E4:F4:3D:B8")){
-                        output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
+                for (Devicepair d : items) {
+                    if(d.device.equals("94:B1:0A:BA:35:A2")){
+                        output += "hallo ik ben wanneee";
                     }
-                    //output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
+                    for (int i = 0; i < idMacaddressPairs.size(); i++) {
+                        if (d.device.equals(idMacaddressPairs.get(i).macaddress) && rssi > -80) {
+                            checkInById(idMacaddressPairs.get(i).id);
 
-                    for (int y = 0; y < macAddressList.size(); y++) {
-                        if(macAddressList.get(y).equals(d.device)){
-
-
-                            Idrssi.add(new IdRssiPair(userEventIdList.get(y), d.rssi));
-                            // output += "Mac: " + d.device + " RSSI: " + d.rssi + "       ";
+                            output += "Id " + idMacaddressPairs.get(i).id + " has been checked in!: " + rssi;
+                            idMacaddressPairs.remove(i);
                         }
                     }
                 }
 
-                if(!Idrssi.isEmpty()){
-                    boolean result = setCheckedInByMacAddress(Idrssi, scanner);
-                    if(!result){
-                        CharSequence text = "deze dingetje is kaput";
-                        int duration = Toast.LENGTH_SHORT;
 
-                        Toast toast = Toast.makeText(context, text, duration);
-                        toast.show();
-                    }
-                    //output += "A person checked in!";
-                }
-                else{
-                    //output += "no one found to check in";
-                }
 
-                textView.setText("");
+
+                android.widget.TextView textView = findViewById(R.id.editText);
+
                 textView.setText(output);
-                output = "";
-                Idrssi.clear();
                 //textView.setText(textView.getText() + "\n " + "\n" +  deviceHardwareName+ " "  +deviceHardwareAddress + " " + rssi);
             }
             if(BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
@@ -180,8 +155,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         toast.show();
                         bluetoothAdapter.cancelDiscovery();
                         bluetoothAdapter.startDiscovery();
-
-                        setCheckedIn();
                     }
                 }.start();
             }
@@ -210,82 +183,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         ResultSet result;
         String sql;
-        sql = "select user_events.id,users.mac_address from user_events LEFT JOIN users ON user_events.id=users.id WHERE users.mac_address IS NOT NUll";
+        sql = "select user_events.id,users.mac_address from user_events LEFT JOIN users ON user_events.id=users.id WHERE users.mac_address IS NOT NUll AND user_events.bluetooth = false";
         try {
             result = st.executeQuery(sql);
             while(result.next()) {
-                macAddressList.add(result.getString(2));
-                userEventIdList.add(result.getInt(1));
+                idMacaddressPairs.add(new IdMacaddressPair(result.getInt(1), result.getString(2)));
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public boolean setCheckedInByMacAddress(ArrayList<IdRssiPair> idList, String scanner){
+    public boolean checkInById(Integer id){
         String sql;
         PreparedStatement st = null;
 
-        for (IdRssiPair d: idList) {
-            sql = "UPDATE user_events SET "+scanner+" = " + d.rssi + " where id = " + d.id;
-            try {
-                st = conn.prepareStatement(sql);
-                int count = st.executeUpdate();
-                if(count == 1){
-                    return true;
-                }
-                else{
-                    return false;
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-        return false;
-    }
-
-    public boolean setCheckedIn(){
-        String sql;
-        Statement st = null;
+        sql = "UPDATE user_events SET bluetooth = true, bluetooth_timestamp = current_timestamp where user_id = " + id.toString();
         try {
-            st = conn.createStatement();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        sql = "select id,s1,s2,s3 from user_events where checked_in IS NOT true";
-        ResultSet result;
-        ArrayList<Integer> idList = new ArrayList<Integer>();
-        try {
-            result = st.executeQuery(sql);
-            if(!result.next()){
-                return false;
-            }
-            while(result.next()) {
-                if(result.getInt(2) != 0 && result.getInt(3) != 0 && result.getInt(4) != 0){
-                    idList.add(result.getInt(1));
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-
-        String idListString = "";
-
-        for (int i = 0; i < idList.size(); i++) {
-            if(idList.size()-1 == i){
-                idListString += idList.get(i);
-            }
-            else{
-                idListString += idList.get(i)+ ",";
-            }
-        }
-        sql = "UPDATE user_events SET checked_in = TRUE, checked_in_at = CURRENT_TIMESTAMP WHERE id IN ("+idListString+")";
-
-        try {
-            PreparedStatement st2 = null;
-            st2 = conn.prepareStatement(sql);
-            int count = st2.executeUpdate();
+            st = conn.prepareStatement(sql);
+            int count = st.executeUpdate();
             if(count == 1){
                 return true;
             }
@@ -295,9 +211,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         } catch (SQLException e) {
             e.printStackTrace();
         }
-
         return false;
-
     }
 
 
@@ -318,22 +232,5 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onDestroy();
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(receiver);
-    }
-
-    @Override
-    public void onClick(View view) {
-        String option = spinner.getSelectedItem().toString();
-        if(option.equals("Scanner 3")){
-            scanner = "s1";
-        }
-        else if(option.equals("Scanner 2")){
-            scanner = "s2";
-        }
-        else{
-            scanner = "s1";
-        }
-
-        bluetoothAdapter.startDiscovery();
-        setContentView(R.layout.activity_main);
     }
 }
